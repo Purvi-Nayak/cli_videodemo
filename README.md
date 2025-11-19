@@ -1,8 +1,10 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Video Chunk Processor - React Native App
+
+A React Native Android application that demonstrates background video chunk processing using WorkManager. This app can process large video files in chunks even when the app is closed or the device is locked.
 
 # Getting Started
 
->**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
+> **Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
 
 ## Step 1: Start the Metro Server
 

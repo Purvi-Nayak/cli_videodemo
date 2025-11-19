@@ -1,6 +1,21 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Network permission (already exists) -->
     <uses-permission android:name="android.permission.INTERNET" />
+    
+    <!-- Storage permissions for reading video files -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    
+    <!-- For Android 13+ (API 33+) - granular media permissions -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    
+    <!-- For background work and wake lock -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    
+    <!-- Receive boot completed to restart work after device reboot -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
       android:name=".MainApplication"
