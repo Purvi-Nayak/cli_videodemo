@@ -8,21 +8,20 @@
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest",
-    "build:android": "cd android && ./gradlew assembleRelease",
-    "clean:android": "cd android && ./gradlew clean",
-    "logs:android": "react-native log-android",
-    "logs:metro": "npx react-native start --verbose",
-    "postinstall": "npx react-native-clean-project auto"
+    "build:android": "cd android && ./gradlew assembleRelease"
   },
   "dependencies": {
-    "@react-native-async-storage/async-storage": "^1.21.0",
+    "@nozbe/watermelondb": "0.28.0",
+    "@react-native-async-storage/async-storage": "1.21.0",
     "react": "18.3.1",
     "react-native": "0.76.7",
-    "react-native-document-picker": "^9.1.1",
-    "react-native-fs": "^2.20.0"
+    "react-native-document-picker": "9.1.1",
+    "react-native-fs": "2.20.0",
+    "react-native-mmkv": "3.2.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@babel/plugin-proposal-decorators": "^7.28.0",
     "@babel/preset-env": "^7.25.3",
     "@babel/runtime": "^7.25.0",
     "@react-native-community/cli": "15.0.1",
