@@ -18,11 +18,15 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import DocumentPicker from 'react-native-document-picker';
+
+import {fastStorage} from './src/storage/FastStorage';
+import {getDatabaseStatus} from './src/database/DatabaseInitializer';
+import {Logger} from './src/utils/logger';
 import {queueManager} from './src/services/QueueManager';
 import {backgroundService} from './src/services/BackgroundService';
 import {chunkReader} from './src/services/ChunkReader';
-import {Logger} from './src/utils/logger';
-import type {VideoFile, ChunkProgress, ProgressEvent} from './src/types';
+import {runImportTests} from './src/utils/ImportTest';
+import type {VideoFile, ChunkProgress, ProgressEvent} from './src/types/index';
 
 const App = () => {
   const [videos, setVideos] = useState<VideoFile[]>([]);
@@ -37,7 +41,21 @@ const App = () => {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    initializeApp();
+    // Log MMKV/AsyncStorage integration
+    const fastStats = fastStorage.getStats();
+    console.log('FastStorage Integration:', fastStats);
+
+    // Initialize WatermelonDB before using it
+    import('./src/database/DatabaseInitializer').then(
+      ({DatabaseInitializer, getDatabaseStatus}) => {
+        DatabaseInitializer.initialize().then(() => {
+          getDatabaseStatus().then((dbStatus: any) => {
+            console.log('WatermelonDB Integration:', dbStatus);
+          });
+          initializeApp();
+        });
+      },
+    );
 
     return () => {
       backgroundService.cleanup();
@@ -48,6 +66,22 @@ const App = () => {
     setIsLoading(true);
 
     try {
+      // Test imports first
+      addLog('🧪 Testing package imports...');
+      const importResults = runImportTests();
+
+      if (importResults.mmkv) {
+        addLog('✅ MMKV imported successfully');
+      } else {
+        addLog('❌ MMKV import failed - using fallback storage');
+      }
+
+      if (importResults.watermelondb) {
+        addLog('✅ WatermelonDB imported successfully');
+      } else {
+        addLog('❌ WatermelonDB import failed - using fallback storage');
+      }
+
       // Request permissions on mount
       await requestPermissions();
 

@@ -7,7 +7,7 @@ import {Database} from '@nozbe/watermelondb';
 import {setGenerator} from '@nozbe/watermelondb/utils/common/randomId';
 import SQLiteAdapter from '@nozbe/watermelondb/adapters/sqlite';
 
-import {schema, migrations} from './schema';
+import {schema} from './schema';
 import {Video, Chunk, UploadJob} from './models';
 
 // Configure database adapter for Android
