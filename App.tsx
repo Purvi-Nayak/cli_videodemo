@@ -16,16 +16,18 @@ import {
   StatusBar,
   RefreshControl,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import DocumentPicker from 'react-native-document-picker';
+import RNFS from 'react-native-fs';
 
 import {fastStorage} from './src/storage/FastStorage';
-import {getDatabaseStatus} from './src/database/DatabaseInitializer';
 import {Logger} from './src/utils/logger';
 import {queueManager} from './src/services/QueueManager';
 import {backgroundService} from './src/services/BackgroundService';
 import {chunkReader} from './src/services/ChunkReader';
 import {runImportTests} from './src/utils/ImportTest';
+import {uploadFileToDropbox} from './src/services/DropboxUploader';
 import type {VideoFile, ChunkProgress, ProgressEvent} from './src/types/index';
 
 const App = () => {
@@ -45,17 +47,8 @@ const App = () => {
     const fastStats = fastStorage.getStats();
     console.log('FastStorage Integration:', fastStats);
 
-    // Initialize WatermelonDB before using it
-    import('./src/database/DatabaseInitializer').then(
-      ({DatabaseInitializer, getDatabaseStatus}) => {
-        DatabaseInitializer.initialize().then(() => {
-          getDatabaseStatus().then((dbStatus: any) => {
-            console.log('WatermelonDB Integration:', dbStatus);
-          });
-          initializeApp();
-        });
-      },
-    );
+    // Skip WatermelonDB initialization — initialize app immediately and use MMKV (fastStorage)
+    initializeApp();
 
     return () => {
       backgroundService.cleanup();
@@ -105,6 +98,9 @@ const App = () => {
       await loadQueueState();
 
       addLog('✅ App initialized successfully');
+
+      // check Dropbox token / account right after init (optional)
+      await checkDropboxStatus();
     } catch (error) {
       Logger.error('App initialization failed:', error);
       addLog('❌ App initialization failed');
@@ -252,13 +248,232 @@ const App = () => {
     }
   };
 
+  const DROPBOX_CLIENT_ID = 'egiwo2to10hhrrc';
+  const DROPBOX_REDIRECT = 'myapp://oauth';
+
+  // Set true if your Dropbox app is "App folder" type (uploads must be committed relative to app folder).
+  // Set false if your app has full Dropbox access and you want to upload to an absolute path.
+  const DROPBOX_APP_FOLDER = true;
+
+  const getDropboxUploadPath = (fileName: string) => {
+    if (DROPBOX_APP_FOLDER) {
+      // app-folder apps: path is relative to app folder
+      return `/${fileName}`;
+    }
+    // full-access apps: choose a folder name you own
+    return `/Apps/MyApp/${fileName}`;
+  };
+
+  // --- Dropbox OAuth helpers (scaffold) ---
+  const generatePKCE = async (): Promise<{
+    verifier: string;
+    challenge?: string;
+  }> => {
+    // NOTE: implement S256 code_challenge properly using SHA-256 + base64url.
+    // This is a quick placeholder using a random verifier. Replace with a real S256 challenge.
+    const verifier =
+      Math.random().toString(36).slice(2) + Date.now().toString(36);
+    return {verifier};
+  };
+
+  const startDropboxAuth = async () => {
+    try {
+      const {verifier, challenge} = await generatePKCE();
+      await fastStorage.set('dropbox_pkce_verifier', verifier);
+
+      const params = new URLSearchParams({
+        response_type: 'code',
+        client_id: DROPBOX_CLIENT_ID,
+        redirect_uri: DROPBOX_REDIRECT,
+        // code_challenge & method should be present when you implement S256
+        // code_challenge: challenge || '',
+        // code_challenge_method: 'S256',
+        token_access_type: 'offline', // to get refresh_token
+      });
+
+      const authUrl = `https://www.dropbox.com/oauth2/authorize?response_type=code&client_id=${DROPBOX_CLIENT_ID}&redirect_uri=${DROPBOX_REDIRECT}&code_challenge=${challenge}&code_challenge_method=S256`;
+      Linking.openURL(authUrl);
+    } catch (e) {
+      addLog('❌ Failed to start Dropbox auth');
+      Alert.alert('Auth error', 'Could not start Dropbox authorization');
+    }
+  };
+
+  // Listen to OAuth redirect and exchange code for tokens
+  useEffect(() => {
+    const handleUrl = async ({url}: {url: string}) => {
+      if (!url) return;
+      try {
+        const parsed = new URL(url);
+        const code = parsed.searchParams.get('code');
+        if (!code) return;
+
+        const verifier = await fastStorage.getString('dropbox_pkce_verifier');
+
+        const body = new URLSearchParams({
+          code,
+          grant_type: 'authorization_code',
+          client_id: DROPBOX_CLIENT_ID,
+          redirect_uri: DROPBOX_REDIRECT,
+          // include code_verifier when you use PKCE S256
+          code_verifier: verifier || '',
+        });
+
+        const res = await fetch('https://api.dropbox.com/oauth2/token', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: body.toString(),
+        });
+        const json = await res.json();
+        if (json.error) {
+          addLog(
+            `❌ Dropbox token error: ${json.error_description || json.error}`,
+          );
+          return;
+        }
+        // store tokens securely
+        await fastStorage.set('dropbox_access_token', json.access_token);
+        if (json.refresh_token) {
+          await fastStorage.set('dropbox_refresh_token', json.refresh_token);
+        }
+        addLog('✅ Dropbox authorized');
+      } catch (err) {
+        addLog('❌ Dropbox redirect handling failed');
+      }
+    };
+
+    // subscribe and keep subscription for cleanup (RN Linking typing prefers this)
+    const subscription = Linking.addEventListener('url', handleUrl);
+    (async () => {
+      const initial = await Linking.getInitialURL();
+      if (initial) handleUrl({url: initial});
+    })();
+
+    return () => {
+      // remove the subscription
+      subscription.remove();
+    };
+  }, []);
+
+  const checkDropboxStatus = async (): Promise<boolean> => {
+    const token = await fastStorage.getString('dropbox_access_token');
+    addLog(`🔎 dropbox_access_token: ${token ? 'FOUND' : 'MISSING'}`);
+    if (!token) return false;
+
+    try {
+      const res = await fetch(
+        'https://api.dropboxapi.com/2/users/get_current_account',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: undefined, // explicit empty JSON body
+        },
+      );
+
+      // If not OK, log raw text and return false
+      if (!res.ok) {
+        const text = await res.text();
+        addLog(
+          `❌ Dropbox account fetch failed: ${res.status} ${res.statusText}`,
+        );
+        addLog(`❌ Response: ${text}`);
+        console.error(
+          'Dropbox fetch failed:',
+          res.status,
+          res.statusText,
+          text,
+        );
+        return false;
+      }
+
+      // Parse JSON with fallback to raw text for debugging
+      let json: any;
+      try {
+        json = await res.json();
+      } catch (parseErr) {
+        const text = await res.text();
+        addLog('❌ Dropbox JSON parse failed — see console for response text');
+        console.error(
+          'Dropbox JSON parse error:',
+          parseErr,
+          'response text:',
+          text,
+        );
+        return false;
+      }
+
+      // success (don't rely on name/email for upload logic)
+      addLog(
+        `✅ Dropbox token valid (account: ${
+          json.email || json.name?.display_name || 'unknown'
+        })`,
+      );
+      return true;
+    } catch (e) {
+      addLog(`❌ Dropbox token test failed: ${String(e)}`);
+      console.error(e);
+      return false;
+    }
+  };
+
+  // Upload all videos in the queue (sequential). Removes video from queue on success.
+  const uploadAllVideosToDropbox = async () => {
+    try {
+      const ok = await checkDropboxStatus();
+      if (!ok) {
+        addLog('⚠️ Dropbox not authorized. Please login.');
+        return;
+      }
+
+      if (videos.length === 0) {
+        addLog('⚠️ No videos to upload');
+        return;
+      }
+
+      setIsLoading(true);
+      for (const v of videos.slice()) {
+        try {
+          addLog(`⬆️ Uploading ${v.name} ...`);
+          const dropboxPath = getDropboxUploadPath(v.name);
+          await uploadFileToDropbox(v.uri, dropboxPath, pct => {
+            addLog(`📤 ${v.name}: ${pct}%`);
+          });
+          addLog(`✅ Uploaded ${v.name} to ${dropboxPath}`);
+
+          // remove from queue/persistence
+          try {
+            await queueManager.removeVideo(v.id);
+            setVideos(prev => prev.filter(x => x.id !== v.id));
+            addLog(`🗑️ Removed ${v.name} from local queue`);
+          } catch (rmErr) {
+            addLog(
+              `⚠️ Uploaded but failed to remove local queue item: ${v.name}`,
+            );
+            console.error('queue remove error:', rmErr);
+          }
+        } catch (err) {
+          addLog(`❌ Upload failed for ${v.name}: ${String(err)}`);
+          console.error('upload error:', err);
+          // continue with next file (or break if you prefer)
+        }
+      }
+      await updateProgress();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // update startProcessing to call the new uploader (and keep background service start)
   const startProcessing = async () => {
     try {
       setIsLoading(true);
 
       const pendingChunks = queueManager.getPendingChunks();
-      if (pendingChunks.length === 0) {
-        Alert.alert('No Work', 'No pending chunks to process');
+      if (pendingChunks.length === 0 && videos.length === 0) {
+        Alert.alert('No Work', 'No pending chunks or videos to process');
         return;
       }
 
@@ -268,6 +483,9 @@ const App = () => {
 
       // Start background service
       await backgroundService.startBackgroundWork();
+
+      // Upload queued videos to Dropbox (JS-level chunked uploader)
+      await uploadAllVideosToDropbox();
 
       setIsProcessing(true);
       addLog('✅ Background service started');
@@ -367,6 +585,25 @@ const App = () => {
     return queueManager.getVideoProgress(videoId);
   };
 
+  // DEV helper: set a raw Dropbox access token into fastStorage (DEV only)
+  const setDevDropboxToken = async () => {
+    if (!__DEV__) return;
+    // WARNING: This is for local development/testing only.
+    // Do NOT commit this token or use in production. Revoke token if exposed.
+    const DEV_TOKEN =
+      'sl.u.AGIAP3HiwGmiMnvmELZBqvNyQ9RrFulb24kO1pS1TRy-WaVv3SkbsMZSlftDjeFQR2Q4PXSCPoQHYP4RyEiGuMpAcpaBNsjQV7f2AiL-YN8r5pSJLSYB_c4elZulANgdgh-2vX9WSTXqg2MFz4vTRuYxH6nHaQt59_kO5zBT30H4dsqQGiSza7CHn-5Km7Xi3AYXy9Um77txzOuvfvcrqNAZbqjzQ4Zb1-HjomdOs0WJVP7ZI9ESUmBAsmV-qFG6gu0CTRDYz6ZSQgcsrpX1wNNeWrpibpui3kxdpuXIR2n4yEtlp3im31T3KfIGOfNnJ4sCdCkqQR2UC2HTdUj4bRZC9rDGFNkCV9ZmtFyy0TQsLCG8oLqos6yA10DEcaRI_aPBQ8dYtw7qpWAeb_VfwvPgwqdvN4QpV902qEyLIig8S4BHRanDoQi7c-9AJ5MWe1G_3p2U59Z9Idy8T3kBMArqcyhhbOGMOAbGHoWl7BFq24UtbHZDZsJ6zBBvtn9NkD1LxDNf9GxUYIB6VgyBU31jDg5vHmjH2QTuej92ZKxqroGBE1cnUWvaOHIxaK3mV_SewYggYXr_STlqaWo-f3FT8g8BbnETmQeI-rTURzTNID8ZJ9wI2bNFrZ6wi4bEUhOoOvZs2hQbWCxdjimrvk3DuyviysrmRsBCxUC6jwoQ7-YnAcHaRuFWmDMqK9njFUKVbcChBba8EAgM3NorgDytz-AujsECJichq0UjaO83dAByCjyzPiSMljbM_oHx1_io4T0aHDwdHeSJ194f0XkLHJifFJfvMLKs9PrtFCemdzTfK3Yd3uPi1jigK0helNjiOiLhKqiDROnxGvY9Rw95N-vpL_ef_oQc1JN2TZxnLXv_LtSy5PVJ5tE7O5yoor5EFNrAsR1j_e8yrvJ04MRXfqWiD4j7UWEwL9bltNJZucpgfFy-mWSDjGTBQvVqwiJ1Kb9U3OLXUsg65XUagKE5XuIDFh5LvhjpuC44WKn_zEEjdPG1xnyxp8snUWVO-F5yhyvzEY-Wi0Ii7Nyvj9FvkfQ7RF8FpGQPKFbTM3I4VrSd_avOniisRp3jq9Nc4K_vjgQmbMebiR5VWWmdgcKoBOONYrNgD_45rSKoKNbN7esx27kPQAeVsfSzTbL0Qh9i0O7GsRhW-lpeK-tSMVebOZrqmypIvbtx-wAihKQwzC0f8CQBRUUH01tVl5q3EBwmRPoFZwsFUOzA1rMxqNvs0qVEuCMHmbTymTH9GnKw4xomy_6c8RI9ZPj9Kxd6LGtXUaL8pkGtPflAcF3EwyEGfRqXlsZZV49vnMlaHaw25kUq0pUgNOofOwqLW4MaFbz4930nQ7RWF9ZHp2JnpMRRbMdGMdLCP166iKHDI0yj3OIqzKTa0JeD2pDCMx-KlDqN3SfK8th-M7gMDyF_Jc_s';
+
+    try {
+      await fastStorage.set('dropbox_access_token', DEV_TOKEN);
+      addLog('✅ Dev Dropbox token saved (DEV only)');
+      // validate immediately
+      await checkDropboxStatus();
+    } catch (err) {
+      addLog('❌ Failed to save dev Dropbox token');
+      console.error(err);
+    }
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.container, styles.centerContent]}>
@@ -408,6 +645,13 @@ const App = () => {
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={[styles.button, {backgroundColor: '#3742fa'}]}
+            onPress={checkDropboxStatus}
+            disabled={isLoading}>
+            <Text style={styles.buttonText}>🔎 Check Dropbox</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[styles.button, styles.successButton]}
             onPress={startProcessing}
             disabled={isProcessing || videos.length === 0 || isLoading}>
@@ -427,6 +671,15 @@ const App = () => {
             disabled={isLoading}>
             <Text style={styles.buttonText}>🔄 Reset</Text>
           </TouchableOpacity>
+
+          {__DEV__ && (
+            <TouchableOpacity
+              style={[styles.button, {backgroundColor: '#8e44ad'}]}
+              onPress={setDevDropboxToken}
+              disabled={isLoading}>
+              <Text style={styles.buttonText}>DEV: Set Token</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Videos List */}
