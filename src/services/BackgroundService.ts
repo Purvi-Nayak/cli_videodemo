@@ -1,7 +1,4 @@
-// ============================================================================
-// FILE: src/services/BackgroundService.ts
 // Bridge to native Android background service using WorkManager
-// ============================================================================
 
 import {NativeModules, NativeEventEmitter, Platform} from 'react-native';
 import {queueManager} from './QueueManager';
@@ -33,7 +30,9 @@ let cloudinaryConfig: CloudinaryConfig = {
 /**
  * Initialize the background service with optional Cloudinary config
  */
-export const initializeBackgroundService = (config?: Partial<CloudinaryConfig>): void => {
+export const initializeBackgroundService = (
+  config?: Partial<CloudinaryConfig>,
+): void => {
   if (isInitialized) {
     Logger.warn('BackgroundService already initialized');
     return;
@@ -53,11 +52,14 @@ export const initializeBackgroundService = (config?: Partial<CloudinaryConfig>):
 
   // Update Cloudinary config if provided
   if (config) {
-    cloudinaryConfig = { ...cloudinaryConfig, ...config };
+    cloudinaryConfig = {...cloudinaryConfig, ...config};
   }
 
   isInitialized = true;
-  Logger.info('BackgroundService initialized successfully with Cloudinary:', cloudinaryConfig.cloudName);
+  Logger.info(
+    'BackgroundService initialized successfully with Cloudinary:',
+    cloudinaryConfig.cloudName,
+  );
 };
 
 /**
@@ -99,7 +101,9 @@ export const startBackgroundWork = async (): Promise<void> => {
       };
     });
 
-    Logger.info(`🚀 Starting Cloudinary upload of ${chunksForNative.length} pending chunks`);
+    Logger.info(
+      ` Starting Cloudinary upload of ${chunksForNative.length} pending chunks`,
+    );
 
     // Start background work via native module with Cloudinary config
     await VideoChunkModule.startCloudinaryUpload(chunksForNative, {
@@ -108,9 +112,9 @@ export const startBackgroundWork = async (): Promise<void> => {
       apiKey: cloudinaryConfig.apiKey,
     });
 
-    Logger.info('✅ Cloudinary background work started successfully');
+    Logger.info(' Cloudinary background work started successfully');
   } catch (error) {
-    Logger.error('❌ Failed to start background work:', error);
+    Logger.error(' Failed to start background work:', error);
     throw error;
   }
 };
@@ -126,9 +130,9 @@ export const stopBackgroundWork = async (): Promise<void> => {
     }
 
     await VideoChunkModule.stopBackgroundWork();
-    Logger.info('⏹️ Background work stopped');
+    Logger.info(' Background work stopped');
   } catch (error) {
-    Logger.error('❌ Failed to stop background work:', error);
+    Logger.error(' Failed to stop background work:', error);
     throw error;
   }
 };
@@ -144,7 +148,7 @@ export const isWorkRunning = async (): Promise<boolean> => {
 
     return await VideoChunkModule.isWorkRunning();
   } catch (error) {
-    Logger.error('❌ Failed to check work status:', error);
+    Logger.error(' Failed to check work status:', error);
     return false;
   }
 };
@@ -152,20 +156,22 @@ export const isWorkRunning = async (): Promise<boolean> => {
 /**
  * Add listener for progress updates from native module
  */
-export const addProgressListener = (callback: (event: ProgressEvent) => void): { remove: () => void } => {
+export const addProgressListener = (
+  callback: (event: ProgressEvent) => void,
+): {remove: () => void} => {
   if (!eventEmitter) {
     Logger.warn('Event emitter not available');
-    return { remove: () => {} };
+    return {remove: () => {}};
   }
 
-  const subscription = eventEmitter.addListener('onChunkProcessed', (event) => {
-    Logger.debug('📦 Received progress event:', event);
+  const subscription = eventEmitter.addListener('onChunkProcessed', event => {
+    Logger.debug(' Received progress event:', event);
 
     // Update chunk status in QueueManager
     if (event.chunkId && event.status) {
-      queueManager.updateChunkStatus(event.chunkId, event.status).catch(
-        error => Logger.error('❌ Failed to update chunk status:', error),
-      );
+      queueManager
+        .updateChunkStatus(event.chunkId, event.status)
+        .catch(error => Logger.error(' Failed to update chunk status:', error));
     }
 
     // Call user callback
@@ -182,14 +188,14 @@ export const addProgressListener = (callback: (event: ProgressEvent) => void): {
  */
 export const addWorkCompleteListener = (
   callback: (success: boolean, message: string) => void,
-): { remove: () => void } => {
+): {remove: () => void} => {
   if (!eventEmitter) {
     Logger.warn('Event emitter not available');
-    return { remove: () => {} };
+    return {remove: () => {}};
   }
 
-  const subscription = eventEmitter.addListener('onWorkComplete', (event) => {
-    Logger.info('🎉 Work completed:', event);
+  const subscription = eventEmitter.addListener('onWorkComplete', event => {
+    Logger.info(' Work completed:', event);
     callback(event.success, event.message);
   });
 
@@ -200,14 +206,16 @@ export const addWorkCompleteListener = (
 /**
  * Add listener for work errors
  */
-export const addErrorListener = (callback: (error: string) => void): { remove: () => void } => {
+export const addErrorListener = (
+  callback: (error: string) => void,
+): {remove: () => void} => {
   if (!eventEmitter) {
     Logger.warn('Event emitter not available');
-    return { remove: () => {} };
+    return {remove: () => {}};
   }
 
-  const subscription = eventEmitter.addListener('onWorkError', (event) => {
-    Logger.error('❌ Work error:', event);
+  const subscription = eventEmitter.addListener('onWorkError', event => {
+    Logger.error(' Work error:', event);
     callback(event.message || 'Unknown error');
   });
 
@@ -223,13 +231,13 @@ export const cleanup = (): void => {
     try {
       listener.remove();
     } catch (error) {
-      Logger.warn('⚠️ Error removing listener:', error);
+      Logger.warn(' Error removing listener:', error);
     }
   });
 
   listeners = [];
   isInitialized = false;
-  Logger.info('🧹 BackgroundService cleanup completed');
+  Logger.info(' BackgroundService cleanup completed');
 };
 
 /**
@@ -243,7 +251,7 @@ export const getWorkQueueInfo = async (): Promise<any> => {
 
     return await VideoChunkModule.getWorkQueueInfo();
   } catch (error) {
-    Logger.error('❌ Failed to get work queue info:', error);
+    Logger.error(' Failed to get work queue info:', error);
     return null;
   }
 };
@@ -260,13 +268,13 @@ export const cancelWork = async (workId?: string): Promise<void> => {
 
     if (workId) {
       await VideoChunkModule.cancelWorkById(workId);
-      Logger.info(`❌ Cancelled work: ${workId}`);
+      Logger.info(` Cancelled work: ${workId}`);
     } else {
       await VideoChunkModule.stopBackgroundWork();
-      Logger.info('❌ Cancelled all background work');
+      Logger.info(' Cancelled all background work');
     }
   } catch (error) {
-    Logger.error('❌ Failed to cancel work:', error);
+    Logger.error(' Failed to cancel work:', error);
     throw error;
   }
 };
@@ -276,7 +284,7 @@ export const cancelWork = async (workId?: string): Promise<void> => {
  */
 export const testConnection = (): boolean => {
   if (!VideoChunkModule) {
-    Logger.error('❌ VideoChunkModule not found');
+    Logger.error(' VideoChunkModule not found');
     return false;
   }
 
@@ -293,14 +301,14 @@ export const testConnection = (): boolean => {
     );
 
     if (available) {
-      Logger.info('✅ Native module connection test passed');
+      Logger.info(' Native module connection test passed');
       return true;
     } else {
-      Logger.error('❌ Some native module methods are missing');
+      Logger.error(' Some native module methods are missing');
       return false;
     }
   } catch (error) {
-    Logger.error('❌ Native module connection test failed:', error);
+    Logger.error(' Native module connection test failed:', error);
     return false;
   }
 };
@@ -309,15 +317,17 @@ export const testConnection = (): boolean => {
  * Get current Cloudinary configuration
  */
 export const getCloudinaryConfig = (): CloudinaryConfig => {
-  return { ...cloudinaryConfig };
+  return {...cloudinaryConfig};
 };
 
 /**
  * Update Cloudinary configuration
  */
-export const updateCloudinaryConfig = (config: Partial<CloudinaryConfig>): void => {
-  cloudinaryConfig = { ...cloudinaryConfig, ...config };
-  Logger.info('⚙️ Cloudinary config updated:', cloudinaryConfig);
+export const updateCloudinaryConfig = (
+  config: Partial<CloudinaryConfig>,
+): void => {
+  cloudinaryConfig = {...cloudinaryConfig, ...config};
+  Logger.info(' Cloudinary config updated:', cloudinaryConfig);
 };
 
 // Export as default object for convenient importing

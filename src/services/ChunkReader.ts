@@ -1,7 +1,4 @@
-// ============================================================================
-// FILE: src/services/ChunkReader.ts
 // Reads video files in chunks using react-native-fs
-// ============================================================================
 
 import RNFS from 'react-native-fs';
 import type {ChunkInfo, FileInfo} from '../types';
@@ -11,10 +8,13 @@ import {Logger} from '../utils/logger';
  * Read a specific chunk from a video file
  * Returns base64 encoded chunk data
  */
-export const readChunk = async (chunk: ChunkInfo, fileUri: string): Promise<string> => {
+export const readChunk = async (
+  chunk: ChunkInfo,
+  fileUri: string,
+): Promise<string> => {
   try {
     Logger.debug(
-      `📖 Reading chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks} ` +
+      ` Reading chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks} ` +
         `from ${chunk.fileName} (${(chunk.size / 1024 / 1024).toFixed(2)} MB)`,
     );
 
@@ -34,13 +34,13 @@ export const readChunk = async (chunk: ChunkInfo, fileUri: string): Promise<stri
     );
 
     Logger.debug(
-      `✅ Successfully read chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks} ` +
+      ` Successfully read chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks} ` +
         `(${base64Data.length} chars base64)`,
     );
 
     return base64Data;
   } catch (error) {
-    Logger.error(`❌ Error reading chunk ${chunk.chunkIndex + 1}:`, error);
+    Logger.error(` Error reading chunk ${chunk.chunkIndex + 1}:`, error);
     throw error;
   }
 };
@@ -49,7 +49,10 @@ export const readChunk = async (chunk: ChunkInfo, fileUri: string): Promise<stri
  * Read chunk as raw bytes
  * Returns Uint8Array for binary data
  */
-export const readChunkAsBytes = async (chunk: ChunkInfo, fileUri: string): Promise<Uint8Array> => {
+export const readChunkAsBytes = async (
+  chunk: ChunkInfo,
+  fileUri: string,
+): Promise<Uint8Array> => {
   try {
     const base64Data = await readChunk(chunk, fileUri);
 
@@ -63,7 +66,7 @@ export const readChunkAsBytes = async (chunk: ChunkInfo, fileUri: string): Promi
 
     return bytes;
   } catch (error) {
-    Logger.error('❌ Error reading chunk as bytes:', error);
+    Logger.error(' Error reading chunk as bytes:', error);
     throw error;
   }
 };
@@ -76,7 +79,7 @@ export const getFileInfo = async (fileUri: string): Promise<FileInfo> => {
     const exists = await RNFS.exists(fileUri);
 
     if (!exists) {
-      return { size: 0, exists: false };
+      return {size: 0, exists: false};
     }
 
     const stat = await RNFS.stat(fileUri);
@@ -86,8 +89,8 @@ export const getFileInfo = async (fileUri: string): Promise<FileInfo> => {
       exists: true,
     };
   } catch (error) {
-    Logger.error('❌ Error getting file info:', error);
-    return { size: 0, exists: false };
+    Logger.error(' Error getting file info:', error);
+    return {size: 0, exists: false};
   }
 };
 
@@ -99,19 +102,19 @@ export const validateFile = async (fileUri: string): Promise<boolean> => {
     const info = await getFileInfo(fileUri);
 
     if (!info.exists) {
-      Logger.error('❌ File does not exist:', fileUri);
+      Logger.error(' File does not exist:', fileUri);
       return false;
     }
 
     if (info.size === 0) {
-      Logger.error('❌ File is empty:', fileUri);
+      Logger.error(' File is empty:', fileUri);
       return false;
     }
 
-    Logger.debug(`✅ File validated: ${fileUri} (${formatFileSize(info.size)})`);
+    Logger.debug(` File validated: ${fileUri} (${formatFileSize(info.size)})`);
     return true;
   } catch (error) {
-    Logger.error('❌ Error validating file:', error);
+    Logger.error(' Error validating file:', error);
     return false;
   }
 };
@@ -125,14 +128,14 @@ export const testFileAccess = async (fileUri: string): Promise<boolean> => {
     const testData = await RNFS.read(fileUri, 1024, 0, 'base64');
 
     if (testData && testData.length > 0) {
-      Logger.debug('✅ File access test passed');
+      Logger.debug(' File access test passed');
       return true;
     }
 
-    Logger.error('❌ File access test failed: no data read');
+    Logger.error(' File access test failed: no data read');
     return false;
   } catch (error) {
-    Logger.error('❌ File access test failed:', error);
+    Logger.error(' File access test failed:', error);
     return false;
   }
 };
@@ -140,7 +143,10 @@ export const testFileAccess = async (fileUri: string): Promise<boolean> => {
 /**
  * Calculate MD5 hash of a chunk (for verification)
  */
-export const calculateChunkHash = async (chunk: ChunkInfo, fileUri: string): Promise<string> => {
+export const calculateChunkHash = async (
+  chunk: ChunkInfo,
+  fileUri: string,
+): Promise<string> => {
   try {
     // Read chunk data
     const base64Data = await readChunk(chunk, fileUri);
@@ -150,13 +156,13 @@ export const calculateChunkHash = async (chunk: ChunkInfo, fileUri: string): Pro
     let hash = 0;
     for (let i = 0; i < base64Data.length; i++) {
       const char = base64Data.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // Convert to 32bit integer
     }
 
     return Math.abs(hash).toString(16);
   } catch (error) {
-    Logger.error('❌ Error calculating chunk hash:', error);
+    Logger.error(' Error calculating chunk hash:', error);
     throw error;
   }
 };
@@ -168,15 +174,15 @@ export const getMimeType = (fileName: string): string => {
   const extension = fileName.toLowerCase().split('.').pop();
 
   const mimeTypes: Record<string, string> = {
-    'mp4': 'video/mp4',
-    'avi': 'video/x-msvideo',
-    'mov': 'video/quicktime',
-    'wmv': 'video/x-ms-wmv',
-    'flv': 'video/x-flv',
-    'webm': 'video/webm',
-    'mkv': 'video/x-matroska',
+    mp4: 'video/mp4',
+    avi: 'video/x-msvideo',
+    mov: 'video/quicktime',
+    wmv: 'video/x-ms-wmv',
+    flv: 'video/x-flv',
+    webm: 'video/webm',
+    mkv: 'video/x-matroska',
     '3gp': 'video/3gpp',
-    'm4v': 'video/x-m4v',
+    m4v: 'video/x-m4v',
   };
 
   return mimeTypes[extension || ''] || 'video/mp4';

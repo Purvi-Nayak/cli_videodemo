@@ -1,7 +1,4 @@
-// ============================================================================
-// FILE: src/utils/logger.ts
 // Logging utility for consistent console output with arrow functions
-// ============================================================================
 
 const prefix = '[VideoChunkProcessor]';
 

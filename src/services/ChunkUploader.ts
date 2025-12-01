@@ -86,5 +86,3 @@ export async function uploadFullVideo(fileUri: string, fileName?: string) {
     throw err;
   }
 }
-
-// Named exports are declared above (no default export) to avoid module interop/runtime ambiguity

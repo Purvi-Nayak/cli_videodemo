@@ -11,8 +11,7 @@
     "build:android": "cd android && ./gradlew assembleRelease",
     "clean:android": "cd android && ./gradlew clean",
     "logs:android": "react-native log-android",
-    "logs:metro": "npx react-native start --verbose",
-    "postinstall": "npx react-native-clean-project auto"
+    "logs:metro": "npx react-native start --verbose"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^1.21.0",

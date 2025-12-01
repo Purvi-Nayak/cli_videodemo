@@ -1,7 +1,5 @@
-// ============================================================================
 // FILE: src/services/QueueManager.ts
 // Manages the queue of video chunks to be processed
-// ============================================================================
 
 import type {VideoFile, ChunkInfo, QueueState, ChunkProgress} from '../types';
 import {Logger} from '../utils/logger';
@@ -27,7 +25,7 @@ export const addVideo = async (video: VideoFile): Promise<void> => {
     const videoChunks: ChunkInfo[] = [];
 
     Logger.info(
-      `📹 Adding video: ${video.name} (${(video.size / 1024 / 1024).toFixed(
+      ` Adding video: ${video.name} (${(video.size / 1024 / 1024).toFixed(
         2,
       )} MB)`,
     );
@@ -60,9 +58,9 @@ export const addVideo = async (video: VideoFile): Promise<void> => {
     }
 
     await saveState();
-    Logger.log(`✅ Added ${totalChunks} chunks for ${video.name}`);
+    Logger.log(` Added ${totalChunks} chunks for ${video.name}`);
   } catch (error) {
-    Logger.error('❌ Error adding video to queue:', error);
+    Logger.error(' Error adding video to queue:', error);
     throw error;
   }
 };
@@ -94,18 +92,18 @@ export const updateChunkStatus = async (
   try {
     const idx = chunks.findIndex(c => c.id === chunkId);
     if (idx === -1) {
-      Logger.warn(`⚠️ Chunk not found: ${chunkId}`);
+      Logger.warn(` Chunk not found: ${chunkId}`);
       return;
     }
 
     chunks[idx].status = status;
     if (status === 'failed' && errorMessage) {
-      Logger.error(`❌ Chunk ${chunkId} failed: ${errorMessage}`);
+      Logger.error(` Chunk ${chunkId} failed: ${errorMessage}`);
     }
 
     await saveState();
   } catch (error) {
-    Logger.error(`❌ Failed to update chunk status for ${chunkId}:`, error);
+    Logger.error(` Failed to update chunk status for ${chunkId}:`, error);
     throw error;
   }
 };
@@ -123,7 +121,7 @@ export const getProgress = async (): Promise<ChunkProgress> => {
       percentage: total > 0 ? (completed / total) * 100 : 0,
     };
   } catch (error) {
-    Logger.error('❌ Failed to get overall progress:', error);
+    Logger.error(' Failed to get overall progress:', error);
     return {completed: 0, total: 0, percentage: 0};
   }
 };
@@ -173,9 +171,9 @@ export const removeVideo = async (videoId: string): Promise<void> => {
     chunks = chunks.filter(c => c.videoId !== videoId);
 
     await saveState();
-    Logger.log(`🗑️ Removed video ${videoId} and ${removedCount} chunks`);
+    Logger.log(` Removed video ${videoId} and ${removedCount} chunks`);
   } catch (error) {
-    Logger.error('❌ Error removing video:', error);
+    Logger.error(' Error removing video:', error);
     throw error;
   }
 };
@@ -206,9 +204,9 @@ export const saveState = async (): Promise<void> => {
   try {
     const state: QueueState = {videos, chunks};
     await MMKVStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    Logger.debug('💾 Queue state saved (MMKV)');
+    Logger.debug(' Queue state saved (MMKV)');
   } catch (error) {
-    Logger.error('❌ Failed to save queue state:', error);
+    Logger.error(' Failed to save queue state:', error);
     throw error;
   }
 };
@@ -224,14 +222,14 @@ export const loadState = async (): Promise<QueueState> => {
       chunks = state.chunks || [];
       videos = state.videos || [];
       Logger.info(
-        `📂 Loaded queue state: ${videos.length} videos, ${chunks.length} chunks`,
+        ` Loaded queue state: ${videos.length} videos, ${chunks.length} chunks`,
       );
       return state;
     }
-    Logger.info('📂 No previous queue state found (MMKV)');
+    Logger.info(' No previous queue state found (MMKV)');
     return {videos: [], chunks: []};
   } catch (error) {
-    Logger.error('❌ Failed to load queue state:', error);
+    Logger.error(' Failed to load queue state:', error);
     chunks = [];
     videos = [];
     return {videos: [], chunks: []};
@@ -246,18 +244,15 @@ export const reset = async (): Promise<void> => {
     chunks = [];
     videos = [];
     await MMKVStorage.removeItem(STORAGE_KEY);
-    Logger.info('🔄 Queue reset completed (MMKV)');
+    Logger.info(' Queue reset completed (MMKV)');
   } catch (error) {
-    Logger.error('❌ Error resetting queue:', error);
+    Logger.error(' Error resetting queue:', error);
     throw error;
   }
 };
 
 /**
  * Process pending chunks by uploading them sequentially.
- * - limit: max number of pending chunks to process in this call (default 1)
- * This function updates chunk status to 'processing' before upload and
- * 'completed' / 'failed' afterwards and persists state.
  */
 export const processPendingChunks = async (
   limit: number = 1,
@@ -276,7 +271,7 @@ export const processPendingChunks = async (
     for (const chunk of pending) {
       try {
         Logger.info(
-          `🔄 Processing chunk ${chunk.id} (${chunk.chunkIndex + 1}/${
+          ` Processing chunk ${chunk.id} (${chunk.chunkIndex + 1}/${
             chunk.totalChunks
           })`,
         );
@@ -297,17 +292,17 @@ export const processPendingChunks = async (
         // on success mark completed
         await updateChunkStatus(chunk.id, 'completed');
         Logger.info(
-          `✅ Chunk uploaded: ${chunk.id} result=${JSON.stringify(result)}`,
+          `Chunk uploaded: ${chunk.id} result=${JSON.stringify(result)}`,
         );
       } catch (err: any) {
         // mark failed and log error
         const msg = err?.message || String(err);
         await updateChunkStatus(chunk.id, 'failed', msg);
-        Logger.error(`❌ Chunk ${chunk.id} failed to upload: ${msg}`);
+        Logger.error(` Chunk ${chunk.id} failed to upload: ${msg}`);
       }
     }
   } catch (error) {
-    Logger.error('❌ processPendingChunks error:', error);
+    Logger.error(' processPendingChunks error:', error);
     throw error;
   }
 };

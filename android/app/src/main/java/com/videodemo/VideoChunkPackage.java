@@ -1,7 +1,7 @@
-// ============================================================================
+
 // FILE: android/app/src/main/java/com/videodemo/VideoChunkPackage.java
 // React Native package to register VideoChunkModule
-// ============================================================================
+
 
 package com.videodemo;
 
