@@ -3,7 +3,7 @@
 import {NativeModules, NativeEventEmitter, Platform} from 'react-native';
 import {queueManager} from './QueueManager';
 import {Logger} from '../utils/logger';
-import type {ProgressEvent, CloudinaryConfig} from '../types';
+import type {ProgressEvent} from '../types';
 
 // Get native module
 const {VideoChunkModule} = NativeModules;
@@ -21,18 +21,10 @@ const eventEmitter = VideoChunkModule
 let isInitialized = false;
 let listeners: Array<{remove: () => void}> = [];
 
-// Cloudinary configuration
-let cloudinaryConfig: CloudinaryConfig = {
-  cloudName: 'dmoajpxcj',
-  uploadPreset: 'chat_app_upload',
-};
-
 /**
- * Initialize the background service with optional Cloudinary config
+ * Initialize the background service
  */
-export const initializeBackgroundService = (
-  config?: Partial<CloudinaryConfig>,
-): void => {
+export const initializeBackgroundService = (): void => {
   if (isInitialized) {
     Logger.warn('BackgroundService already initialized');
     return;
@@ -50,20 +42,12 @@ export const initializeBackgroundService = (
     return;
   }
 
-  // Update Cloudinary config if provided
-  if (config) {
-    cloudinaryConfig = {...cloudinaryConfig, ...config};
-  }
-
   isInitialized = true;
-  Logger.info(
-    'BackgroundService initialized successfully with Cloudinary:',
-    cloudinaryConfig.cloudName,
-  );
+  Logger.info('BackgroundService initialized successfully');
 };
 
 /**
- * Start background work using WorkManager with Cloudinary upload
+ * Start background work using WorkManager
  */
 export const startBackgroundWork = async (): Promise<void> => {
   try {
@@ -102,19 +86,15 @@ export const startBackgroundWork = async (): Promise<void> => {
     });
 
     Logger.info(
-      ` Starting Cloudinary upload of ${chunksForNative.length} pending chunks`,
+      `🚀 Starting background upload of ${chunksForNative.length} pending chunks`,
     );
 
-    // Start background work via native module with Cloudinary config
-    await VideoChunkModule.startCloudinaryUpload(chunksForNative, {
-      cloudName: cloudinaryConfig.cloudName,
-      uploadPreset: cloudinaryConfig.uploadPreset,
-      apiKey: cloudinaryConfig.apiKey,
-    });
+    // Start background work via native module
+    await VideoChunkModule.startBackgroundWork(chunksForNative);
 
-    Logger.info(' Cloudinary background work started successfully');
+    Logger.info('✅ Background work started successfully');
   } catch (error) {
-    Logger.error(' Failed to start background work:', error);
+    Logger.error('❌ Failed to start background work:', error);
     throw error;
   }
 };
@@ -130,9 +110,9 @@ export const stopBackgroundWork = async (): Promise<void> => {
     }
 
     await VideoChunkModule.stopBackgroundWork();
-    Logger.info(' Background work stopped');
+    Logger.info('⏸️ Background work stopped');
   } catch (error) {
-    Logger.error(' Failed to stop background work:', error);
+    Logger.error('❌ Failed to stop background work:', error);
     throw error;
   }
 };
@@ -148,7 +128,7 @@ export const isWorkRunning = async (): Promise<boolean> => {
 
     return await VideoChunkModule.isWorkRunning();
   } catch (error) {
-    Logger.error(' Failed to check work status:', error);
+    Logger.error('❌ Failed to check work status:', error);
     return false;
   }
 };
@@ -165,13 +145,15 @@ export const addProgressListener = (
   }
 
   const subscription = eventEmitter.addListener('onChunkProcessed', event => {
-    Logger.debug(' Received progress event:', event);
+    Logger.debug('📦 Received progress event:', event);
 
     // Update chunk status in QueueManager
     if (event.chunkId && event.status) {
       queueManager
         .updateChunkStatus(event.chunkId, event.status)
-        .catch(error => Logger.error(' Failed to update chunk status:', error));
+        .catch(error =>
+          Logger.error('❌ Failed to update chunk status:', error),
+        );
     }
 
     // Call user callback
@@ -195,7 +177,7 @@ export const addWorkCompleteListener = (
   }
 
   const subscription = eventEmitter.addListener('onWorkComplete', event => {
-    Logger.info(' Work completed:', event);
+    Logger.info('🎉 Work completed:', event);
     callback(event.success, event.message);
   });
 
@@ -215,7 +197,7 @@ export const addErrorListener = (
   }
 
   const subscription = eventEmitter.addListener('onWorkError', event => {
-    Logger.error(' Work error:', event);
+    Logger.error('❌ Work error:', event);
     callback(event.message || 'Unknown error');
   });
 
@@ -231,13 +213,13 @@ export const cleanup = (): void => {
     try {
       listener.remove();
     } catch (error) {
-      Logger.warn(' Error removing listener:', error);
+      Logger.warn('⚠️ Error removing listener:', error);
     }
   });
 
   listeners = [];
   isInitialized = false;
-  Logger.info(' BackgroundService cleanup completed');
+  Logger.info('🧹 BackgroundService cleanup completed');
 };
 
 /**
@@ -251,7 +233,7 @@ export const getWorkQueueInfo = async (): Promise<any> => {
 
     return await VideoChunkModule.getWorkQueueInfo();
   } catch (error) {
-    Logger.error(' Failed to get work queue info:', error);
+    Logger.error('❌ Failed to get work queue info:', error);
     return null;
   }
 };
@@ -268,13 +250,13 @@ export const cancelWork = async (workId?: string): Promise<void> => {
 
     if (workId) {
       await VideoChunkModule.cancelWorkById(workId);
-      Logger.info(` Cancelled work: ${workId}`);
+      Logger.info(`🚫 Cancelled work: ${workId}`);
     } else {
       await VideoChunkModule.stopBackgroundWork();
-      Logger.info(' Cancelled all background work');
+      Logger.info('🚫 Cancelled all background work');
     }
   } catch (error) {
-    Logger.error(' Failed to cancel work:', error);
+    Logger.error('❌ Failed to cancel work:', error);
     throw error;
   }
 };
@@ -284,7 +266,7 @@ export const cancelWork = async (workId?: string): Promise<void> => {
  */
 export const testConnection = (): boolean => {
   if (!VideoChunkModule) {
-    Logger.error(' VideoChunkModule not found');
+    Logger.error('❌ VideoChunkModule not found');
     return false;
   }
 
@@ -301,33 +283,16 @@ export const testConnection = (): boolean => {
     );
 
     if (available) {
-      Logger.info(' Native module connection test passed');
+      Logger.info('✅ Native module connection test passed');
       return true;
     } else {
-      Logger.error(' Some native module methods are missing');
+      Logger.error('❌ Some native module methods are missing');
       return false;
     }
   } catch (error) {
-    Logger.error(' Native module connection test failed:', error);
+    Logger.error('❌ Native module connection test failed:', error);
     return false;
   }
-};
-
-/**
- * Get current Cloudinary configuration
- */
-export const getCloudinaryConfig = (): CloudinaryConfig => {
-  return {...cloudinaryConfig};
-};
-
-/**
- * Update Cloudinary configuration
- */
-export const updateCloudinaryConfig = (
-  config: Partial<CloudinaryConfig>,
-): void => {
-  cloudinaryConfig = {...cloudinaryConfig, ...config};
-  Logger.info(' Cloudinary config updated:', cloudinaryConfig);
 };
 
 // Export as default object for convenient importing
@@ -343,6 +308,4 @@ export const backgroundService = {
   getWorkQueueInfo,
   cancelWork,
   testConnection,
-  getCloudinaryConfig,
-  updateCloudinaryConfig,
 };

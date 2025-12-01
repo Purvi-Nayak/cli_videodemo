@@ -46,10 +46,3 @@ export interface FileInfo {
   size: number;
   exists: boolean;
 }
-
-export interface CloudinaryConfig {
-  cloudName: string;
-  uploadPreset: string;
-  apiKey?: string; // Optional for unsigned uploads
-  apiSecret?: string; // Optional for unsigned uploads
-}
