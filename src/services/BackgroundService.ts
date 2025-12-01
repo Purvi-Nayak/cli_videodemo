@@ -86,15 +86,15 @@ export const startBackgroundWork = async (): Promise<void> => {
     });
 
     Logger.info(
-      `🚀 Starting background upload of ${chunksForNative.length} pending chunks`,
+      ` Starting background upload of ${chunksForNative.length} pending chunks`,
     );
 
     // Start background work via native module
     await VideoChunkModule.startBackgroundWork(chunksForNative);
 
-    Logger.info('✅ Background work started successfully');
+    Logger.info(' Background work started successfully');
   } catch (error) {
-    Logger.error('❌ Failed to start background work:', error);
+    Logger.error(' Failed to start background work:', error);
     throw error;
   }
 };
@@ -110,9 +110,9 @@ export const stopBackgroundWork = async (): Promise<void> => {
     }
 
     await VideoChunkModule.stopBackgroundWork();
-    Logger.info('⏸️ Background work stopped');
+    Logger.info(' Background work stopped');
   } catch (error) {
-    Logger.error('❌ Failed to stop background work:', error);
+    Logger.error(' Failed to stop background work:', error);
     throw error;
   }
 };
@@ -128,7 +128,7 @@ export const isWorkRunning = async (): Promise<boolean> => {
 
     return await VideoChunkModule.isWorkRunning();
   } catch (error) {
-    Logger.error('❌ Failed to check work status:', error);
+    Logger.error(' Failed to check work status:', error);
     return false;
   }
 };
@@ -145,15 +145,13 @@ export const addProgressListener = (
   }
 
   const subscription = eventEmitter.addListener('onChunkProcessed', event => {
-    Logger.debug('📦 Received progress event:', event);
+    Logger.debug(' Received progress event:', event);
 
     // Update chunk status in QueueManager
     if (event.chunkId && event.status) {
       queueManager
         .updateChunkStatus(event.chunkId, event.status)
-        .catch(error =>
-          Logger.error('❌ Failed to update chunk status:', error),
-        );
+        .catch(error => Logger.error('Failed to update chunk status:', error));
     }
 
     // Call user callback
@@ -177,7 +175,7 @@ export const addWorkCompleteListener = (
   }
 
   const subscription = eventEmitter.addListener('onWorkComplete', event => {
-    Logger.info('🎉 Work completed:', event);
+    Logger.info(' Work completed:', event);
     callback(event.success, event.message);
   });
 
@@ -197,7 +195,7 @@ export const addErrorListener = (
   }
 
   const subscription = eventEmitter.addListener('onWorkError', event => {
-    Logger.error('❌ Work error:', event);
+    Logger.error(' Work error:', event);
     callback(event.message || 'Unknown error');
   });
 
@@ -213,13 +211,13 @@ export const cleanup = (): void => {
     try {
       listener.remove();
     } catch (error) {
-      Logger.warn('⚠️ Error removing listener:', error);
+      Logger.warn(' Error removing listener:', error);
     }
   });
 
   listeners = [];
   isInitialized = false;
-  Logger.info('🧹 BackgroundService cleanup completed');
+  Logger.info(' BackgroundService cleanup completed');
 };
 
 /**
@@ -233,7 +231,7 @@ export const getWorkQueueInfo = async (): Promise<any> => {
 
     return await VideoChunkModule.getWorkQueueInfo();
   } catch (error) {
-    Logger.error('❌ Failed to get work queue info:', error);
+    Logger.error(' Failed to get work queue info:', error);
     return null;
   }
 };
@@ -250,13 +248,13 @@ export const cancelWork = async (workId?: string): Promise<void> => {
 
     if (workId) {
       await VideoChunkModule.cancelWorkById(workId);
-      Logger.info(`🚫 Cancelled work: ${workId}`);
+      Logger.info(` Cancelled work: ${workId}`);
     } else {
       await VideoChunkModule.stopBackgroundWork();
-      Logger.info('🚫 Cancelled all background work');
+      Logger.info(' Cancelled all background work');
     }
   } catch (error) {
-    Logger.error('❌ Failed to cancel work:', error);
+    Logger.error(' Failed to cancel work:', error);
     throw error;
   }
 };
@@ -266,7 +264,7 @@ export const cancelWork = async (workId?: string): Promise<void> => {
  */
 export const testConnection = (): boolean => {
   if (!VideoChunkModule) {
-    Logger.error('❌ VideoChunkModule not found');
+    Logger.error(' VideoChunkModule not found');
     return false;
   }
 
@@ -283,14 +281,14 @@ export const testConnection = (): boolean => {
     );
 
     if (available) {
-      Logger.info('✅ Native module connection test passed');
+      Logger.info(' Native module connection test passed');
       return true;
     } else {
-      Logger.error('❌ Some native module methods are missing');
+      Logger.error(' Some native module methods are missing');
       return false;
     }
   } catch (error) {
-    Logger.error('❌ Native module connection test failed:', error);
+    Logger.error(' Native module connection test failed:', error);
     return false;
   }
 };
